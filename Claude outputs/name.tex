@@ -1,0 +1,158 @@
+\documentclass[Journal,letterpaper,InsideFigs]{ascelike-new}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage{placeins}
+\usepackage{array}
+\usepackage{tabularx}
+\graphicspath{{images/}}
+\usepackage[commentmarkup=footnote]{changes}
+\NameTag{Brandenberg, \today}
+
+\AtBeginDocument{\providecommand{\linenumberfont}{}%
+  \renewcommand{\linenumberfont}{\normalfont\small\sffamily\color{black!60}}}
+
+\newcommand{\needsinput}[1]{\textcolor{red}{\textbf{[NEEDS INPUT: #1]}}}
+% Plain yellow highlight (Word highlight with no comment attached)
+\newcommand{\hlmark}[1]{{\setlength{\fboxsep}{0.5pt}\colorbox{yellow}{\strut #1}}}
+
+% Authors of tracked changes / comments in the Word draft
+% The ASCE class redefines \cite in a fragile way; make it robust so it works inside \added/\replaced
+\AtBeginDocument{\robustify\cite\robustify\citeN}
+
+\definechangesauthor[name={Scott Brandenberg}, color=blue]{SB}
+\definechangesauthor[name={Claude}, color=orange]{CL}
+
+\begin{document}
+
+\title{Open-Source Schema and Web Service for Rendering Geotechnical Boring Logs}
+
+\author[1]{Scott J. Brandenberg}
+\author[2]{Arda Sahin}
+
+\affil[1]{Professor, Dept. of Civil and Environmental Engineering, Univ. of California, Los Angeles, CA 90095 (corresponding author). ORCID: 0000-0003-2493-592X. Email: sjbrandenberg@g.ucla.edu}
+\affil[2]{PhD Candidate, Dept. of Civil and Environmental Engineering, Univ. of California, Los Angeles, CA 90095. ORCID: 0009-0009-7676-6567. Email: arda120222@g.ucla.edu}
+
+\maketitle
+
+\begin{abstract}
+Geotechnical boring logs are typically prepared one boring at a time using commercial software, whereas research databases store boring data as related tables of layers, samples, and test results. This technical note presents an open-source tool that draws conventional boring logs directly from such data. Each boring is represented by a single JSON file, defined by a published schema, that contains the boring metadata, layers with material descriptions and Unified Soil Classification System (USCS) symbols, samples with sampler type, blow counts, and laboratory index properties, and groundwater observations. The tool draws the log following the conventions of consultant logs, including USCS graphic patterns, sampler symbols, and laboratory test columns, and places the text so that each description and sample value appears at its correct depth. Where a layer has no recorded USCS symbol, the symbol is inferred from the material description and identified as inferred. Files in the AGS4 and DIGGS exchange formats can also be converted. \added[id=CL]{Borings with coordinates can also be combined into cross sections and a three-dimensional site model.} The tool is available as a web page, a web service, and a JavaScript module. It now draws the logs for 1,407 borings in the Next-Generation Liquefaction (NGL) database, where USCS symbols were inferred for 2,085 layers and the inference rules agreed with the authors' assessment for 97\% of the 655 cases reviewed.
+\end{abstract}
+
+\noindent\textbf{Author keywords:} Boring log; Subsurface exploration; Geotechnical data; Data visualization; Web service.
+
+\section{Introduction}
+
+The results of a geotechnical site investigation are commonly presented as boring logs, which show the stratigraphy, soil descriptions, soil classifications, sampling intervals, penetration resistance, laboratory index properties, and groundwater observations against a common depth or elevation scale. In practice, a geologist or geotechnical engineer prepares each log individually using commercial software such as gINT and its successor OpenGround \cite{Bentley2026} or RSLog \cite{Rocscience2026}. Research databases differ from project files in two respects: boring data are stored as records in related tables (e.g., layers, samples, and test results) rather than as finished logs, and the number of borings grows continually as contributors add new sites. Preparing logs one boring at a time is impractical at this scale, so these databases would benefit from logs that are drawn automatically, in a uniform format, directly from the stored data. The Next-Generation Liquefaction (NGL) database \cite{Brandenberg2020,Ulmer2023}, for example, contains layer descriptions, samples, standard penetration test (SPT) results, laboratory index tests, and groundwater depths for more than 1,600 borings. Prior to this work, the NGL website displayed each boring as a plot of SPT blow count versus depth beside the layer descriptions, without a graphic log, sampler symbols, or laboratory data.
+
+The DIGGS \cite{DIGGS2026} and AGS4 \cite{AGS2026} data interchange formats standardize the transfer of geotechnical data, and some tools built on these formats also produce boring logs. The British Geological Survey (BGS) AGS API, built on the python-ags4 library \cite{Senanayake2022}, returns a PDF log for boreholes held by the National Geoscience Data Centre, and Geosetta \cite{Geosetta2026} displays a boring log from a user's DIGGS file within an interactive viewer. Neither tool is intended for displaying logs from another database: the BGS log is limited to boreholes already in the BGS archive, and the Geosetta log is part of a larger application. Neither follows the conventions of a typical consultant's log, such as USCS graphic patterns, sampler symbols, and laboratory test columns. When the same borehole was drawn with both tools during this study, Geosetta truncated the material descriptions, and the BGS log placed the description boxes out of alignment with the stratum boundaries.
+
+This technical note presents i) a standardized JSON data format for a single boring that stores the information shown on a conventional boring log, and ii) a tool that draws the log from these data following the conventions of consultant boring logs. Any database can use the tool by converting its tables into this format, and files in the AGS4 and DIGGS formats can be converted directly. The tool now draws the boring logs in the NGL database, which serves as the example application in this technical note.
+
+\section{Document Format}
+
+Each boring is stored as a single text file in JavaScript Object Notation (JSON) \cite{Bray2017}, a widely used format in which each value is paired with a descriptive label (e.g., the top depth, bottom depth, and description of a layer). The permissible contents of the file are defined by a JSON Schema \cite{Wright2022}, which serves as a template listing the fields available for a boring and the type of value each field accepts. The schema is documented by \citeN{BrandenbergSahin2026}, and its contents are summarized in Table~\ref{tab:contents}. The data are organized into the same groups of information that appear on a conventional boring log: boring metadata, layers, samples, groundwater observations, and observations at specific depths. Units of length and unit weight are specified once for each boring, with SI units as the default. Fig.~\ref{fig:dataflow} shows how data from existing databases are converted into this format and then drawn as a boring log.
+
+Each file is checked for errors before the log is drawn. Field names that are not defined in the schema are reported as errors, so that a misspelled field is flagged rather than silently left off the log. The bottom depth of each layer and sample must lie below its top depth. Gaps and overlaps between adjacent layers are reported as warnings, but they do not prevent the log from being drawn. \added[id=CL]{Empty values (null) are treated as not reported, so database exports can be used without cleaning. Sample recovery is stored as a length and shown in the remarks (e.g., ``Recovery 0.36 m (80\%)''); a sample with no recovery is recorded with zero recovery and the sampler that was attempted, rather than as a separate sampler type.} Example files are provided in the software documentation.
+
+\begin{table}[htbp]
+\centering
+\caption{Information stored in the boring data format}
+\label{tab:contents}
+\small
+\renewcommand{\arraystretch}{1.4}
+\begin{tabularx}{\textwidth}{>{\centering\arraybackslash}m{2.6cm}>{\raggedright\arraybackslash}X}
+\hline\hline
+Group & Contents \\
+\hline
+units & Depth, elevation (\underline{m} or ft), unit weight (\underline{kN/m\textsuperscript{3}} or pcf), diameter (\underline{mm}, cm, m, in., or ft); defaults underlined \\
+metadata & Project, site, boring name, latitude and longitude, ground elevation and datum, dates, drilling method, rig, borehole diameter, hammer and energy ratio, logger, driller, notes, and any citations associated with the boring \\
+layers & Top and bottom depth, material description, USCS symbol, optional hatch (a USCS symbol, one of 67 built-in material and rock codes, or a user-supplied code) \\
+samples & Top and bottom depth, name, sampler type (one of 23 built-in types, such as SPT, modified California, Shelby tube, piston, direct push, sonic core, rock core, and bulk, or a user-supplied code), description, sampler diameter, recovery, blow count (number or refusal text such as 50/5 in.), blows per increment, energy ratio, water content, dry unit weight, specific gravity, fines content, liquid and plastic limits or nonplastic, remarks \\
+groundwater & Depth, date, note (e.g., encountered or stabilized) \\
+depth\_notes & Depth and description of an observation within a layer (e.g., thin sand lens) that is not associated with a sample \\
+references & Sources of the data (text and URL), such as the report a boring comes from, listed in the header \\
+patterns & User-supplied hatches and sampler symbols, by code: SVG markup, or an image (PNG, JPEG, or SVG) with its pixel size; legend label; and tile width \\
+\hline\hline
+\end{tabularx}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{fig1_data_flow.png}
+\caption{Data flow from source databases to rendered boring logs.}
+\label{fig:dataflow}
+\end{figure}
+
+\FloatBarrier
+
+\section{Boring Log Layout}
+
+The tool draws each boring log as a scalable vector graphics (SVG) image \cite{W3C2011}, which remains sharp at any zoom level and can be displayed directly in a web page. Fig.~\ref{fig:nas3} shows the log of boring NAS-3 at Nantou Site A, Taiwan \cite{PEER2000}, one of the borings in the NGL database. This boring was selected because it includes a range of soil types, dual USCS symbols, SPT and Shelby tube samples, and laboratory index tests. The log follows the column layout of a typical consultant's log: depth, elevation, groundwater level, graphic log, USCS symbol, and material description, followed by sample type, sample number, blow count, sample description, laboratory index properties, and remarks. Columns without data are omitted by default, so that both a historical boring with only descriptions and blow counts and a modern boring with complete laboratory data are presented without empty columns; users may choose to show all columns instead. A header above the log lists the boring information (e.g., location, dates, drilling method, hammer, and driller) and the source of the data, and a legend below the log explains each pattern and symbol that appears in it.
+
+The graphic pattern for each layer is based on its USCS symbol and follows the soil legend of the Caltrans logging manual \cite{Caltrans2010}. Layers with dual symbols, such as ML-CL and GP-GW in Fig.~\ref{fig:nas3}, are drawn with the two patterns side by side. Materials not classified by USCS, such as fill, topsoil, man-made materials, and rock, are drawn with one of 67 additional patterns, with the rock patterns following the lithologic patterns of the U.S. Geological Survey standard \cite{FGDC2006}. These patterns can be specified directly or assigned automatically when the description names the principal material, such as ``FILL: silty sand'' or ``SHALE, black, hard.'' Users can also define their own patterns and sampler symbols (Table~\ref{tab:contents}), either to replace a built-in pattern or to add a new one.
+
+Many research borings lack USCS symbols; in the NGL database, only 1,634 of the 10,945 layers in 1,407 borings have one. Without a symbol, the graphic log would show no soil pattern, even though the material description often contains enough information to classify the soil. Where a layer has a description but no USCS symbol, the tool infers the symbol from the ASTM D2487 group name in the description \cite{ASTM2017a}. For example, ``fat CLAY'' is assigned CH, and ``poorly graded SAND with silt'' is assigned SP-SM. The inference rules are conservative: no symbol is assigned when a description names more than one soil type, gives a range such as ``lean to fat CLAY,'' or does not indicate gradation or plasticity, such as ``SAND,'' because assigning a symbol in these cases would require judgment that the original logger did not record. Inferred symbols are shown in parentheses and identified in the legend so that they are not mistaken for symbols recorded by the logger, as for the upper fill layer in Fig.~\ref{fig:nas3}. \added[id=CL]{Recorded symbols are also checked against the description. When a recorded symbol is not a valid USCS symbol (e.g., GW-GP) or conflicts with the group name in the description (e.g., SP for ``sandy SILT''), the recorded symbol is shown with the inferred symbol below it in parentheses, and a warning is reported, so that the discrepancy can be resolved by the user rather than silently passed on.} The inference rules were checked against the NGL data, as described in the Application to the NGL Database section.
+
+Placing the text is the main difficulty in drawing a boring log automatically, because material descriptions are often longer than the layers they describe, yet each description must be read at the correct depth. Each description starts at the top of its layer, or immediately below the previous description if that one extends past its layer, and a leader line connects it to the layer boundary. Observations recorded at a single depth, such as a thin sand lens, are shown in italics below the layer description and marked at their depth. The values for each sample (e.g., blow count, water content, and index properties) are aligned with the middle of its sampler symbol. By default, the depth scale is stretched until the text for each sample no longer overlaps the next and every description ends above the bottom of the boring, so logs with long descriptions or closely spaced samples can be tall. \added[id=CL]{Text widths are computed from a built-in table of character widths rather than measured by the browser, so line breaks are identical in every browser and in the images returned by the web service.} The log is drawn as a single continuous image rather than divided into pages because it is intended primarily for viewing on a screen rather than for printing.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[height=0.9\textheight]{fig2_NAS3_boring_log.png}
+\caption{Boring log for NGL boring NAS-3 at Nantou Site A, Taiwan. USCS symbols in parentheses are inferred from the material descriptions. NGL \texttt{TEST\_ID} = 1478. Data source: \cite{PEER2000}}
+\label{fig:nas3}
+\end{figure}
+
+\FloatBarrier
+
+\section{Cross Sections and Site Models}
+
+\added[id=CL]{When several borings have coordinates, the tool can also draw a cross section along a line selected on a map, or a set of sections suggested from the layout of the borings (e.g., along and across the site). Borings within a set distance of the line (100~m by default) are projected onto it. In each boring, consecutive layers of the same main soil (e.g., sand, clay, fill, or rock) are grouped, and the groups are matched between neighboring borings from top to bottom. Groups are matched only if they are the same main soil and do not cross, and groups at similar depths are preferred. Layers with no match in the next boring are drawn as pinching out, and the first groundwater reading in each boring is connected. The same matching is used to build a three-dimensional block model of the site, with layer thicknesses interpolated between borings. Both are intended for a quick view of site stratigraphy rather than as a geologic interpretation.}
+
+\section{Availability}
+
+The tool can be used in three ways (Fig.~\ref{fig:dataflow}): through a web page, suited to an engineer preparing or checking individual logs; through a web service, suited to a database that displays logs on its own website; and as a JavaScript module, for developers who wish to include the tool in their own web applications. All three use the same data checks and drawing code and therefore produce identical boring logs.
+
+The web page (https://uclageo.com/boring-log-viewer) displays the log as a JSON file is pasted or edited, together with any errors or warnings found in the data. AGS4 and DIGGS files can also be opened on the page and are converted to the JSON format automatically. \added[id=CL]{The AGS4 converter was tested on 48 boreholes exported from the BGS National Geoscience Data Centre, and the DIGGS converter (versions 2.5, 2.6, and 3.x) on the official DIGGS example files, including 13 Ohio DOT borings. Several logs can be open at once, each in its own tab, and borings with coordinates are shown on a map, from which a cross section can be drawn; all open logs can be downloaded together as a ZIP file.} The finished log can be downloaded as an SVG or PNG image or printed to PDF. A ``Hatches'' window allows users to upload their own graphic patterns as PNG, JPEG, or SVG images; raster images are converted to vector patterns, and the user selects the layers to which each pattern is assigned, with the JSON file updated accordingly. Custom patterns added on the page are available only during that session unless they are saved in the JSON file. All processing takes place in the user's web browser, and no boring data or images are uploaded to a server, so the page can be used for confidential project data.
+
+The web service is intended for databases that display boring logs on their own websites. The website sends the JSON file for a boring, or an AGS4 or DIGGS file, to the service in an HTTP POST request, and the service returns the log as an SVG image, a PNG image, or a stand-alone HTML page that can be inserted into a web page. \added[id=CL]{The files for all borings at a site (up to 200) can also be sent in a single request, and the service returns a site page with a map, suggested cross sections, the three-dimensional model, and each boring log.} Files with errors are rejected with the same messages shown on the web page. Because the service does not store user data, any custom patterns must be included in the JSON file; the web page can generate the required pattern text for this purpose. The service accepts requests from any website, with a limit of 60 requests per minute from each client. The request format is described in the software documentation \cite{BrandenbergSahin2026}. Developers who prefer not to depend on the web service can instead import the tool as a JavaScript module and draw the logs within their own applications, either in the browser or on a server.
+
+\section{Application to the NGL Database}
+
+The NGL website now draws its boring logs using the web service. When a user opens a boring, a conversion script on the NGL server assembles the boring data from the related database tables into a JSON file, including the citations for the boring, which are listed in the log header. The user's browser sends this file to the web service and displays the returned log. Because the logs are drawn from the database each time they are viewed rather than stored as images, any correction to the data appears in the log immediately. \needsinput{Does NGL use the site page (POST /api/site) yet? If yes, add one sentence here.}
+
+Most of the conversion effort addresses inconsistencies that are typical of research data compiled from many sources. Units in the source data are converted to those specified in the JSON file. More than 40 free-text sampler descriptions, such as ``Raymond Split Spoon'' and ``Osterberg,'' are mapped to the 23 sampler types in the schema; this step is important because the sampler type governs how blow counts should be interpreted. Values that would fail the data checks, such as layers with a bottom depth above the top depth, are omitted. As of September 2026, 1,407 of the 1,645 borings in the NGL database produced valid files, and all 1,407 were drawn successfully. The remaining 238 borings have no usable layer descriptions; where SPT blow counts are available for these borings, the previous NGL chart is shown instead. Drawing all 1,407 logs on a desktop computer took 1.2~s, and the public web service returned the largest log (16 layers and 89 samples) in less than 0.16~s, including network time.
+
+The rules used to infer USCS symbols and material patterns from the descriptions were checked against the NGL data before release. The authors reviewed 655 USCS symbols proposed by the inference rules, and the final rules agree with the authors' assessment for 634 (97\%) of them. Most of the remaining cases are layers described without gradation or plasticity, such as ``fine to coarse GRAVEL,'' for which the rules intentionally assign no symbol. Using these rules, USCS symbols are inferred for 2,085 layers in 796 of the 1,407 logs.
+
+Material and rock patterns are inferred only from the principal material in a description, so that fill, asphalt, topsoil, or shale is drawn in place of a soil pattern, whereas a minor constituent (e.g., ``with trace shells'') is ignored; British ``made ground'' is drawn as fill. The authors reviewed 802 material patterns proposed for layers that could not be assigned a USCS symbol, and the final rules agree with the authors' assessment for 798 (99.5\%) of them. The other four are intervals with partial recovery, for which the rules intentionally use the soil type of the recovered portion rather than a no-recovery pattern. In total, material patterns are drawn for 1,095 layers without a USCS symbol, most commonly fill (549 layers), no recovery (182 layers), and topsoil (125 layers).
+
+\section{Limitations}
+
+The tool is intended for applications in which many logs must be drawn consistently from stored data, such as research databases, rather than as a replacement for logs prepared individually by a geologist or engineer. Automatically drawn logs may contain errors that would normally be corrected by hand when a log is prepared for a single project, and each log should therefore be reviewed before it is used for engineering purposes.
+
+Inferred USCS symbols are based only on the material description and are not a substitute for classification from laboratory tests. The inference rules assume ASTM D2487 terminology \cite{ASTM2017a}, so descriptions written under other conventions can be misinterpreted. For example, ``silty clay'' is interpreted as the D2487 group name for CL-ML, although most NGL layers with this description and a recorded symbol are classified as CL. A recorded USCS symbol or pattern always takes precedence over an inferred one, and inference of both USCS symbols and material patterns can be turned off.
+
+\replaced[id=CL]{Cross sections and the three-dimensional site model are automatic interpretations: layers are connected between borings by soil type and depth only, without the geologic judgment an engineer would apply, and when ground elevations are not available (as in NGL) the borings are aligned at the ground surface. Both figures carry a note to this effect, and uncertain connections are marked with a question mark. Other site investigation data, such as cone penetration test soundings and shear wave velocity profiles, are not included in the format.}{The tool draws one boring at a time; producing logs for many borings requires a separate request for each, and cross sections or fence diagrams that combine several borings are not produced. Other site investigation data, such as cone penetration test soundings and shear wave velocity profiles, are not included in the format.}
+
+\section{Conclusions}
+
+This technical note presents a standardized JSON format for storing the information shown on a geotechnical boring log and a tool that draws conventional, consultant-style logs from data in this format. By converting each boring to a single file, data stored in research databases as related tables can be presented with a graphic log, sampler symbols, and laboratory index properties in the same manner as a log prepared by a geologist or engineer, and files in the AGS4 and DIGGS formats can be converted directly. \added[id=CL]{Borings with coordinates can also be combined into cross sections and a three-dimensional site model for a quick view of site stratigraphy.} The tool now draws the logs for 1,407 borings in the NGL database, and because the logs are drawn from the database each time they are viewed, corrections to the data appear in the logs immediately. Where a USCS symbol is not recorded, it can be inferred from an ASTM-style material description; symbols were inferred for 2,085 NGL layers, and the inference rules agreed with the authors' assessment for 97\% of the 655 cases reviewed. The tool is freely available as a web page, a web service, and a JavaScript module, so it can be used both by individual engineers and by other geotechnical databases.
+
+\section{Data Availability Statement}
+
+All code generated during the study is available in a public repository online \cite{BrandenbergSahin2026}. The NGL data used in this study are available through the NGL website (https://nextgenerationliquefaction.org; \citeNP{Ulmer2023}).
+
+\section{Acknowledgments}
+
+The authors thank Jonathan P. Stewart, K. \"{O}nder \c{C}etin, and Robb E.S. Moss for their input on the boring log tool during the NSF Rapid project \needsinput{NSF Award Number}. The software \replaced[id=CL]{was}{were} drafted with the assistance of an AI coding assistant (Claude, Anthropic); the authors reviewed, tested, and take responsibility for all code and text.
+
+\newpage
+\bibliography{references}
+
+\end{document}

@@ -1,0 +1,41 @@
+# systemd unit for the render API. See deploy/README.md for the full steps.
+# Defaults assume Rocky Linux 9: the app in /gmdatabase/sites/uclageo.com/public_html/boring-log-viewer,
+# run as the apache user, and Node from AppStream at /usr/bin/node.
+# If the app lives under /home, change ProtectHome=true to ProtectHome=read-only.
+#   sudo cp deploy/boring-log-viewer.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now boring-log-viewer
+# After each deploy:  sudo systemctl restart boring-log-viewer
+# Logs:               journalctl -u boring-log-viewer -f
+
+[Unit]
+Description=Boring log viewer render API
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/gmdatabase/sites/uclageo.com/public_html/boring-log-viewer
+ExecStart=/usr/bin/node server/index.js
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOST=127.0.0.1
+Environment=RATE_LIMIT=60
+User=apache
+Group=apache
+Restart=on-failure
+RestartSec=5
+
+# Hardening: the service only reads its own files and writes font caches to /tmp.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/gmdatabase/sites/uclageo.com/public_html/boring-log-viewer
+
+# Optional resource caps so a burst of large PNG renders can't crowd out
+# other sites. Uncomment to enable.
+#MemoryMax=512M
+#CPUQuota=100%
+
+[Install]
+WantedBy=multi-user.target
