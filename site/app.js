@@ -21,7 +21,6 @@ const EXAMPLES = {
     vspdb: { label: 'Treasure Island boring (US units, SPT)', doc: vspdb },
     dense: { label: 'Thin layers with long descriptions', doc: dense },
     minimal: { label: 'Minimal (one layer)', doc: minimal },
-    nantou: { label: 'NAS-3, Nantou, Taiwan (real boring, NGL data)', doc: nas3 },
     nantou_site: { label: 'Nantou site: NAS-1 to NAS-4 (four real borings, opens four tabs)', docs: [nas1, nas2, nas3, nas4] },
 };
 const STORAGE_KEY = 'boring-log-viewer-logs-only:v1'; // separate from the full version's
