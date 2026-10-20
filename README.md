@@ -6,7 +6,25 @@ and no slice. Everything else is the same: the log, the map of open logs,
 the Layout… and Hatches… windows, AGS4/DIGGS import, downloads. The full
 version is in `../boring-log-viewer-main`. The library (`src/`) and the API
 (`server/`) are unchanged here, so they still include `renderSection` and the
-site endpoints; the README below describes the full version.
+site endpoints; the README below describes the full version. Cross-sections,
+the 3D model and the site API won't be published, so they are left out of
+the documentation (`../Documentation_revised`).
+
+## Excel import (logs-only copy)
+
+The page also opens Excel workbooks (`.xlsx`) laid out like
+`site/templates/boring-log-template.xlsx` (served as
+`templates/boring-log-template.xlsx`, with a filled-in example `NAS-1.xlsx`).
+One workbook is one boring; each sheet is one part of the JSON (Units,
+Metadata, Layers, Samples, Specimens, Groundwater, Depth notes, References,
+Layout, Columns). The template's instruction rows are optional: header rows
+are found by their field names. The converter is `src/xlsx.js`
+(`xlsxToBoringLog(bytes)` -> `{ document, warnings }`, no dependencies; it
+runs in the browser, not in the API). Its `SHEETS` list defines the sheets
+and fields; after changing it, rebuild the templates with
+`python3 scripts/build-xlsx-template.py` and
+`python3 scripts/build-xlsx-template.py examples/NAS-1.json` (needs openpyxl),
+then the test fixtures as in `tests/xlsx.test.js`.
 
 # Boring log viewer
 
@@ -46,7 +64,7 @@ Full examples are in [`tests/fixtures/`](tests/fixtures/). Main points:
   `cm`, `m`, `in` or `ft`. SI is the default.
 - **`layers`**: one object per stratum, `{ top, bottom, description, uscs, hatch }`.
   The graphic log uses `hatch` if given (use `"none"` to leave it blank), then
-  a material or rock named in the description (see below), then `uscs`, then a
+  a material or rock named in the description (see below), then `uscs`, then
   the USCS symbol inferred from the description and shown in the USCS column
   (e.g. "silty SAND" gives SM). A layer with none of these has no USCS
   symbol, so its graphic log is left blank (a "clayey SILT", for example, is
@@ -165,8 +183,9 @@ Full examples are in [`tests/fixtures/`](tests/fixtures/). Main points:
   an allowlist: `path`, `rect`, `circle`, `ellipse`, `line`, `polyline`,
   `polygon` and `g`, with geometry and fill/stroke attributes (`style="..."`
   is read into attributes). Titles, metadata and editor namespaces (Inkscape,
-  Illustrator) are dropped; text, images, `<use>`, `<style>`, scripts,
-  `url(...)` values and DOCTYPEs are rejected with a message. The rebuilt SVG
+  Illustrator) are dropped; text, images, `<use>`, `<style>`, scripts
+  and DOCTYPEs are rejected with a message, and attributes with `url(...)`
+  values are dropped. The rebuilt SVG
   is drawn as a data URI in an `<image>`, like a picture, so no user markup
   goes into the log itself. Add `"kind": "sampler"`
   for a sampler symbol (stretched to fill the sample's box), and `tile_width`
@@ -182,7 +201,8 @@ Full examples are in [`tests/fixtures/`](tests/fixtures/). Main points:
   stored as `svg`; a raster kept as a picture (for photos or shading) is
   stored as `image`, scaled down to 512 px. It sets `hatch` or `type` on the layers
   or samples the user ticks, so no JSON editing is needed. It also lists the
-  built-in hatches and sampler symbols, each with a Replace button.
+  built-in hatches and sampler symbols: USCS hatches and sampler symbols have
+  a Replace button, and built-in materials a Use button.
 - **`layout`**: how the log is laid out, kept with the data. Without it the
   built-in layout is used.
   ```json
