@@ -26,6 +26,14 @@ test('specimens, custom values, units and booleans survive the round trip', asyn
     assert.equal(validateBoringLog(document).valid, true);
 });
 
+test('the B-3 example workbook offered on the page is the coastal example', async () => {
+    const { document, warnings } = await xlsxToBoringLog(file('../site/templates/B-3-example.xlsx'));
+    const expected = json('fixtures/coastal-style.json');
+    delete expected.metadata.notes;
+    assert.deepEqual(warnings, []);
+    assert.deepEqual(document, expected);
+});
+
 test('the empty template reads without errors and asks for layers', async () => {
     const { document, warnings } = await xlsxToBoringLog(file('../site/templates/boring-log-template.xlsx'));
     assert.deepEqual(document, { schema_version: '1.0', layers: [] });
