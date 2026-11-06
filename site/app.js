@@ -18,8 +18,8 @@ import nas3 from '../examples/NAS-3.json' with { type: 'json' };
 import nas4 from '../examples/NAS-4.json' with { type: 'json' };
 
 const EXAMPLES = {
-    coastal: { label: 'Coastal boring (metric, lab data)', doc: coastal },
-    vspdb: { label: 'Treasure Island boring (US units, SPT)', doc: vspdb },
+    coastal: { label: 'Coastal boring (synthetic data, metric, lab data)', doc: coastal },
+    vspdb: { label: 'Treasure Island boring (synthetic data, US units, SPT)', doc: vspdb },
     dense: { label: 'Thin layers with long descriptions', doc: dense },
     minimal: { label: 'Minimal (one layer)', doc: minimal },
     nantou_site: { label: 'Nantou site: NAS-1 to NAS-4 (four real borings, opens four tabs)', docs: [nas1, nas2, nas3, nas4] },

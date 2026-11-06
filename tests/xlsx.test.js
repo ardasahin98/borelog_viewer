@@ -84,3 +84,19 @@ test('files that are not .xlsx workbooks are refused', async () => {
     await assert.rejects(xlsxToBoringLog(new TextEncoder().encode('hello')), XlsxError);
     await assert.rejects(xlsxToBoringLog(new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0, 0, 0, 0])), /old \.xls/);
 });
+
+test('recovery (as a percent), sample unit weights and a specimen USCS are read from a workbook', () => {
+    const { document, warnings } = workbookToBoringLog({ sheets: [
+        { name: 'Layers', rows: [['top', 'bottom', 'description'], [0, 10, 'Gray lean CLAY']] },
+        { name: 'Samples', rows: [['name', 'top', 'bottom', 'type', 'Recovery (%)', 'total_unit_weight'], ['T-1', 2, 4, 'Shelby', 85, 18.6]] },
+        { name: 'Specimens', rows: [['sample_name', 'top', 'liquid_limit', 'plastic_limit', 'USCS'], ['T-1', 2.5, 44, 21, 'CL']] },
+    ] });
+    assert.deepEqual(warnings, []);
+    assert.deepEqual(document.samples, [{
+        top: 2, bottom: 4, name: 'T-1', type: 'Shelby', recovery_percent: 85, total_unit_weight: 18.6,
+        specimens: [{ top: 2.5, liquid_limit: 44, plastic_limit: 21, uscs: 'CL' }],
+    }]);
+    const v = validateBoringLog(document);
+    assert.equal(v.valid, true, JSON.stringify(v.errors));
+    assert.deepEqual(v.warnings, []);
+});
